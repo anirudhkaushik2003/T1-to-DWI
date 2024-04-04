@@ -13,8 +13,10 @@ import os
 from generator import Generator
 from discriminator import Discriminator
 from utils import weights_init, create_checkpoint, restart_last_checkpoint
+from dataset import get_data, t1Dataset
 
 import torchvision.utils as vutils
+from unet_generator import UNet3D
 
 BATCH_SIZE = 64
 IMG_SIZE = 32
@@ -28,16 +30,25 @@ data_transforms = transforms.Compose([
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-train = torchvision.datasets.CIFAR10(root='/ssd_scratch/cvit/anirudhkaushik/datasets/', train=True, download=True, transform=data_transforms)
-test = torchvision.datasets.CIFAR10(root='/ssd_scratch/cvit/anirudhkaushik/datasets/', train=False, download=True, transform=data_transforms)
+# train = torchvision.datasets.CIFAR10(root='/ssd_scratch/cvit/anirudhkaushik/datasets/', train=True, download=True, transform=data_transforms)
+# test = torchvision.datasets.CIFAR10(root='/ssd_scratch/cvit/anirudhkaushik/datasets/', train=False, download=True, transform=data_transforms)
+
+train = get_data()
+# randomly split data into train and test
+train, test = torch.utils.data.random_split(train, [int(0.8*len(train)), len(train) - int(0.8*len(train))])
+train = t1Dataset(train)
+test = t1Dataset(test)
 
 data_loader = DataLoader(torch.utils.data.ConcatDataset([train, test]), batch_size=BATCH_SIZE, shuffle=True)
 
 
 criterion = nn.BCELoss()
 
-modelG = Generator(IMG_SIZE, img_ch=img_channels)
-modelD = Discriminator(img_channels=3)
+# modelG = Generator(IMG_SIZE, img_ch=img_channels)
+# modelD = Discriminator(img_channels=3)
+
+modelG = UNet3D(in_channels=img_channels, out_channels=img_channels)
+modelD = UNet3D(in_channels=img_channels, out_channels=1)
 
 modelG = torch.nn.DataParallel(modelG)
 modelD = torch.nn.DataParallel(modelD)
@@ -58,7 +69,7 @@ optimD = torch.optim.Adam(modelD.parameters(), lr=learning_rate1, betas=(0.5, 0.
 optimG = torch.optim.Adam(modelG.parameters(), lr=learning_rate2, betas=(0.5, 0.999))
 
 num_epochs = 100
-save_freq = 1
+save_freq = 5
 
 # check if checkpoint exists and load it
 if os.path.exists('/ssd_scratch/cvit/anirudhkaushik/checkpoints/bganG_checkpoint_latest.pt'):
